@@ -17,7 +17,7 @@ import javax.servlet.http.HttpServletResponse;
 public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtService jwtService;
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
     @Value("${jwt.access.expiration}")
     private String accessTokenExpiration;
