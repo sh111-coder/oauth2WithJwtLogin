@@ -5,7 +5,10 @@ import login.oauthtest4.domain.user.repository.UserRepository;
 import login.oauthtest4.global.jwt.filter.JwtAuthenticationProcessingFilter;
 import login.oauthtest4.global.jwt.service.JwtService;
 import login.oauthtest4.global.login.filter.CustomJsonUsernamePasswordAuthenticationFilter;
+import login.oauthtest4.global.login.handler.LoginFailureHandler;
+import login.oauthtest4.global.login.handler.LoginSuccessHandler;
 import login.oauthtest4.global.login.service.LoginService;
+import login.oauthtest4.global.oauth2.handler.OAuth2LoginFailureHandler;
 import login.oauthtest4.global.oauth2.handler.OAuth2LoginSuccessHandler;
 import login.oauthtest4.global.oauth2.service.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ public class SecurityConfig {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
     private final CustomOAuth2UserService customOAuth2UserService;
 
     @Bean
@@ -62,15 +66,14 @@ public class SecurityConfig {
                 //== 소셜 로그인 설정 ==//
                 .oauth2Login()
                 .successHandler(oAuth2LoginSuccessHandler) // 동의하고 계속하기를 눌렀을 때 Handler 설정
+                .failureHandler(oAuth2LoginFailureHandler) // 소셜 로그인 실패 시 핸들러 설정
                 .userInfoEndpoint().userService(customOAuth2UserService); // customUserService 설정
 
         // 원래 스프링 시큐리티 필터 순서가 LogoutFilter 이후에 로그인 필터 동작
         // 따라서, LogoutFilter 이후에 우리가 만든 필터 동작하도록 설정
         // 순서 : LogoutFilter -> JwtAuthenticationProcessingFilter -> CustomJsonUsernamePasswordAuthenticationFilter
-        // antMatchers().permitAll()로 "/login"과 "/sign-up"
         http.addFilterAfter(customJsonUsernamePasswordAuthenticationFilter(), LogoutFilter.class);
         http.addFilterBefore(jwtAuthenticationProcessingFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class);
-
 
         return http.build();
     }
