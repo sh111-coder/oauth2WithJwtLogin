@@ -20,7 +20,6 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.ResultActions;
 
 import javax.persistence.EntityManager;
 import javax.transaction.Transactional;
@@ -72,6 +71,7 @@ class JwtAuthenticationProcessingFilterTest {
     private static final String PASSWORD = "password1";
     private static final String LOGIN_URL = "/login";
     private static final String ACCESS_TOKEN_SUBJECT = "AccessToken";
+    private static final String REFRESH_TOKEN_SUBJECT = "RefreshToken";
     private static final String BEARER = "Bearer ";
 
     /**
@@ -124,163 +124,68 @@ class JwtAuthenticationProcessingFilterTest {
     @DisplayName("AccessToken, RefreshToken 모두 존재하지 않는 경우 - /login로 302 리다이렉트")
     void Access_Refresh_not_exist() throws Exception {
         // when, then
-        mockMvc.perform(get(LOGIN_URL + "123")) // "/login"이 아닌 임의의 주소를 보내기
+        mockMvc.perform(get("/jwt-test")) // "/login"이 아니고, 존재하는 주소를 보내기
                 .andExpect(status().isFound()); // 헤더에 아무 토큰도 없이 요청하므로 302
     }
 
     @Test
-    @DisplayName("AccessToken 유효, RefreshToken 존재하지 않는 경우 - 인증 성공(없는 주소 404)")
-    void Access_valid_and_Refresh_not_exist() throws Exception {
+    @DisplayName("유효한 AccessToken만 요청 - 인증 성공 200")
+    void Access_valid_request() throws Exception {
         // given
         Map<String, String> tokenMap = getTokenMap();
         String accessToken = tokenMap.get(accessHeader);
 
         // when, then
-        mockMvc.perform(get(LOGIN_URL + "123") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken))
-                .andExpect(status().isNotFound()); // 헤더에 아무 토큰도 없이 요청하므로 302
+        mockMvc.perform(get("/jwt-test") // "/login"이 아니고, 존재하는 주소를 보내기
+                        .header(accessHeader, BEARER + accessToken)) // 유효한 AccessToken만 담아서 요청
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("AccessToken 존재하지만 유효하지 않고, RefreshToken 존재하지 않는 경우 - /login로 302 리다이렉트)")
-    void Access_not_valid_and_Refresh_not_exist() throws Exception {
+    @DisplayName("유효하지 않은 AccessToken만 요청 - /login로 302 리다이렉트)")
+    void Access_not_valid_request() throws Exception {
         // given
         Map<String, String> tokenMap = getTokenMap();
         String accessToken = tokenMap.get(accessHeader);
 
         // when, then
-        mockMvc.perform(get(LOGIN_URL + "123") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken + "1")) // 틀린 액세스 토큰 보내기
-                .andExpect(status().isFound()); // 틀린 액세스 토큰이므로 Forbidden
+        mockMvc.perform(get("/jwt-test") // "/login"이 아니고, 존재하는 주소를 보내기
+                        .header(accessHeader, BEARER + accessToken + "1")) // 틀린 AccessToken만 담아서 요청
+                .andExpect(status().isFound()); // 틀린 액세스 토큰이므로 302 리다이렉트
     }
 
     @Test
-    @DisplayName("AccessToken 존재하지 않고, RefreshToken 유효한 경우 - AccessToken 재발급 후 200")
-    void Access_not_exist_and_Refresh_valid() throws Exception {
+    @DisplayName("AccessToken 만료된 경우, RefreshToken 유효한 경우 - AccessToken/RefreshToken 재발급 후 200")
+    void Access_expired_and_Refresh_valid() throws Exception {
         // given
         Map<String, String> tokenMap = getTokenMap();
         String refreshToken = tokenMap.get(refreshHeader);
 
         // when, then
-        MvcResult result = mockMvc.perform(get("/jwt-test1") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(refreshHeader, BEARER + refreshToken))
+        MvcResult result = mockMvc.perform(get("/jwt-test") // "/login"이 아니고, 존재하는 주소를 보내기
+                        .header(refreshHeader, BEARER + refreshToken)) // refreshToken만 담아서 요청
                 .andExpect(status().isOk()).andReturn();
-        String accessToken = result.getResponse().getHeader(accessHeader);
-        String subject = JWT.require(Algorithm.HMAC512(secretKey)).build().verify(accessToken).getSubject();
+        String accessToken = result.getResponse().getHeader(accessHeader); // accessToken 재발급
+        String reIssuedRefreshToken = result.getResponse().getHeader(refreshHeader); // refreshToken 재발급
 
-        assertThat(subject).isEqualTo(ACCESS_TOKEN_SUBJECT);
+        String accessTokenSubject = JWT.require(Algorithm.HMAC512(secretKey)).build()
+                .verify(accessToken).getSubject();
+        String refreshTokenSubject = JWT.require(Algorithm.HMAC512(secretKey)).build()
+                .verify(reIssuedRefreshToken).getSubject();
+
+        assertThat(accessTokenSubject).isEqualTo(ACCESS_TOKEN_SUBJECT);
+        assertThat(refreshTokenSubject).isEqualTo(REFRESH_TOKEN_SUBJECT);
     }
 
     @Test
-    @DisplayName("AccessToken 존재하지 않고, RefreshToken 유효하지 않은 경우 - /login로 302 리다이렉트")
-    void Access_not_exist_and_Refresh_not_valid() throws Exception {
+    @DisplayName("AccessToken 만료된 경우, RefreshToken 유효하지 않은 경우 - /login로 302 리다이렉트")
+    void Access_expired_and_Refresh_not_valid() throws Exception {
         // given
         Map<String, String> tokenMap = getTokenMap();
         String refreshToken = tokenMap.get(refreshHeader);
 
         // when, then
-        mockMvc.perform(get("/jwt-test1") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(refreshHeader, BEARER + refreshToken + "1")) // 유효하지 않은 리프레시 토큰 보내기
-                .andExpect(status().isFound());
-    }
-
-    @Test
-    @DisplayName("AccessToken 유효, RefreshToken 유효한 경우 - AccessToken 재발급 후 200")
-    void Access_valid_and_Refresh_valid() throws Exception {
-        // given
-        Map<String, String> tokenMap = getTokenMap();
-        String accessToken = tokenMap.get(accessHeader);
-        String refreshToken = tokenMap.get(refreshHeader);
-
-        // when, then
-        MvcResult result = mockMvc.perform(get("/jwt-test1") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken) // 유효한 액세스 토큰 보내기
-                        .header(refreshHeader, BEARER + refreshToken)) // 유효한 리프레시 토큰 보내기
-                .andExpect(status().isOk()).andReturn();
-
-        String reIssuedAccessToken = result.getResponse().getHeader(accessHeader);
-        String responseRefreshToken = result.getResponse().getHeader(refreshHeader);
-        String subject = JWT.require(Algorithm.HMAC512(secretKey)).build().verify(reIssuedAccessToken).getSubject();
-
-        assertThat(subject).isEqualTo(ACCESS_TOKEN_SUBJECT);
-        assertThat(responseRefreshToken).isNull(); // refreshToken은 재발급 되지 않음
-    }
-
-    @Test
-    @DisplayName("AccessToken 유효하지 않고, RefreshToken 유효한 경우 - AccessToken 재발급 후 200")
-    void Access_not_valid_and_Refresh_valid() throws Exception {
-        // given
-        Map<String, String> tokenMap = getTokenMap();
-        String accessToken = tokenMap.get(accessHeader);
-        String refreshToken = tokenMap.get(refreshHeader);
-
-        // when, then
-        MvcResult result = mockMvc.perform(get("/jwt-test1") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken + "1") // 유효하지 않은 액세스 토큰 보내기
-                        .header(refreshHeader, BEARER + refreshToken)) // 유효한 리프레시 토큰 보내기
-                .andExpect(status().isOk()).andReturn();
-
-        String reIssuedAccessToken = result.getResponse().getHeader(accessHeader);
-        String responseRefreshToken = result.getResponse().getHeader(refreshHeader);
-        String subject = JWT.require(Algorithm.HMAC512(secretKey)).build().verify(reIssuedAccessToken).getSubject();
-
-        assertThat(subject).isEqualTo(ACCESS_TOKEN_SUBJECT);
-        assertThat(responseRefreshToken).isNull(); // refreshToken은 재발급 되지 않음
-    }
-
-    @Test
-    @DisplayName("AccessToken 유효, RefreshToken 유효하지 않은 경우 - 인증 성공, 틀린 주소이므로 404")
-    void Access_valid_and_Refresh_not_valid_not_Found_URL() throws Exception {
-        // given
-        Map<String, String> tokenMap = getTokenMap();
-        String accessToken = tokenMap.get(accessHeader);
-        String refreshToken = tokenMap.get(refreshHeader);
-
-        // when, then
-        MvcResult result = mockMvc.perform(get("/jwt-test1") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken) // 유효한 액세스 토큰 보내기
-                        .header(refreshHeader, BEARER + refreshToken + "1")) // 유효하지 않은 리프레시 토큰 보내기
-                .andExpect(status().isNotFound()).andReturn();
-
-        String responseAccessToken = result.getResponse().getHeader(accessHeader);
-        String responseRefreshToken = result.getResponse().getHeader(refreshHeader);
-
-        assertThat(responseAccessToken).isNull();
-        assertThat(responseRefreshToken).isNull();
-    }
-
-    @Test
-    @DisplayName("AccessToken 유효, RefreshToken 유효하지 않은 경우 - 인증 성공, 있는 주소이므로 200")
-    void Access_valid_and_Refresh_not_valid_correct_URL() throws Exception {
-        // given
-        Map<String, String> tokenMap = getTokenMap();
-        String accessToken = tokenMap.get(accessHeader);
-        String refreshToken = tokenMap.get(refreshHeader);
-
-        // when, then
-        MvcResult result = mockMvc.perform(get("/jwt-test") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken) // 유효한 액세스 토큰 보내기
-                        .header(refreshHeader, BEARER + refreshToken + "1")) // 유효하지 않은 리프레시 토큰 보내기
-                .andExpect(status().isOk()).andReturn();
-
-        String responseAccessToken = result.getResponse().getHeader(accessHeader);
-        String responseRefreshToken = result.getResponse().getHeader(refreshHeader);
-
-        assertThat(responseAccessToken).isNull();
-        assertThat(responseRefreshToken).isNull();
-    }
-
-    @Test
-    @DisplayName("AccessToken 유효하지 않고, RefreshToken 유효하지 않은 경우 - /login로 302 리다이렉트")
-    void Access_not_valid_and_Refresh_not_valid() throws Exception {
-        // given
-        Map<String, String> tokenMap = getTokenMap();
-        String accessToken = tokenMap.get(accessHeader);
-        String refreshToken = tokenMap.get(refreshHeader);
-
-        // when, then
-        mockMvc.perform(get("/jwt-test") // "/login"이 아닌 임의의 주소를 보내기
-                        .header(accessHeader, BEARER + accessToken + "1") // 유효하지 않은 액세스 토큰 보내기
+        mockMvc.perform(get("/jwt-test") // "/login"이 아니고, 존재하는 주소를 보내기
                         .header(refreshHeader, BEARER + refreshToken + "1")) // 유효하지 않은 리프레시 토큰 보내기
                 .andExpect(status().isFound());
     }
