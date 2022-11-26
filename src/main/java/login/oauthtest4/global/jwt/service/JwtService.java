@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -50,7 +48,7 @@ public class JwtService {
 
     /**
      * AccessToken 생성 메소드
-    */
+     */
     public String createAccessToken(String email) {
         Date now = new Date();
         return JWT.create() // JWT 토큰을 생성하는 빌더 반환
@@ -89,17 +87,12 @@ public class JwtService {
     /**
      * AccessToken + RefreshToken 헤더에 실어서 보내기
      */
-    public void sendAccessAndRefreshToken(HttpServletResponse response, String accessToken, String refreshToken){
+    public void sendAccessAndRefreshToken(HttpServletResponse response, String accessToken, String refreshToken) {
         response.setStatus(HttpServletResponse.SC_OK);
 
         setAccessTokenHeader(response, accessToken);
         setRefreshTokenHeader(response, refreshToken);
         log.info("Access Token, Refresh Token 헤더 설정 완료");
-
-        Map<String, String> tokenMap = new HashMap<>();
-        tokenMap.put(ACCESS_TOKEN_SUBJECT, accessToken);
-        tokenMap.put(REFRESH_TOKEN_SUBJECT, refreshToken);
-
     }
 
     /**
