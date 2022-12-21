@@ -1,4 +1,4 @@
-package login.oauthtest4.global.oauth2.util;
+package login.oauthtest4.global.jwt.util;
 
 import java.util.Random;
 
