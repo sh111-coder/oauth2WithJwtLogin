@@ -3,7 +3,7 @@ package login.oauthtest4.global.jwt.filter;
 import login.oauthtest4.domain.user.User;
 import login.oauthtest4.domain.user.repository.UserRepository;
 import login.oauthtest4.global.jwt.service.JwtService;
-import login.oauthtest4.global.oauth2.util.PasswordUtil;
+import login.oauthtest4.global.jwt.util.PasswordUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
