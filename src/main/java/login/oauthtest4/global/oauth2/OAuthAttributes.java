@@ -3,6 +3,10 @@ package login.oauthtest4.global.oauth2;
 import login.oauthtest4.domain.user.Role;
 import login.oauthtest4.domain.user.SocialType;
 import login.oauthtest4.domain.user.User;
+import login.oauthtest4.global.oauth2.userinfo.GoogleOAuth2UserInfo;
+import login.oauthtest4.global.oauth2.userinfo.KakaoOAuth2UserInfo;
+import login.oauthtest4.global.oauth2.userinfo.NaverOAuth2UserInfo;
+import login.oauthtest4.global.oauth2.userinfo.OAuth2UserInfo;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -16,17 +20,13 @@ import java.util.UUID;
 @Getter
 public class OAuthAttributes {
 
-    private Map<String, Object> attributes; // 소셜 로그인에서 API가 제공하는 userInfo의 Json 값
     private String nameAttributeKey; // OAuth2 로그인 진행 시 키가 되는 필드 값, PK와 같은 의미
-    private String id; //소셜 식별 값 : 구글 - "eamil", 카카오 - "kakaoId", 네이버 - "id"
-
-    private static final String NAVER_NAME_ATTRIBUTE_KEY = "id";
+    private OAuth2UserInfo oauth2UserInfo; // 소셜 타입별 로그인 유저 정보(닉네임, 이메일, 프로필 사진 등등)
 
     @Builder
-    public OAuthAttributes(Map<String, Object> attributes, String nameAttributeKey, String id) {
-        this.attributes = attributes;
+    public OAuthAttributes(String nameAttributeKey, OAuth2UserInfo oauth2UserInfo) {
         this.nameAttributeKey = nameAttributeKey;
-        this.id = id;
+        this.oauth2UserInfo = oauth2UserInfo;
     }
 
     /**
@@ -35,54 +35,52 @@ public class OAuthAttributes {
      * 소셜별 of 메소드(ofGoogle, ofKaKao, ofNaver)들은 각각 소셜 로그인 API에서 제공하는
      * 회원의 식별값(id), attributes, nameAttributeKey를 저장 후 build
      */
-    public static OAuthAttributes of(SocialType socialType, String userNameAttributeName, Map<String, Object> attributes) {
+    public static OAuthAttributes of(SocialType socialType,
+                                     String userNameAttributeName, Map<String, Object> attributes) {
 
         if (socialType == SocialType.NAVER) {
-            return ofNaver(NAVER_NAME_ATTRIBUTE_KEY, attributes);
+            return ofNaver(userNameAttributeName, attributes);
         }
-        if (socialType == SocialType.KAKAO){
-            return ofKakao(userNameAttributeName,attributes);
+        if (socialType == SocialType.KAKAO) {
+            return ofKakao(userNameAttributeName, attributes);
         }
         return ofGoogle(userNameAttributeName, attributes);
     }
 
     private static OAuthAttributes ofKakao(String userNameAttributeName, Map<String, Object> attributes) {
         return OAuthAttributes.builder()
-                .id(attributes.get("id") + "")
-                .attributes(attributes)
                 .nameAttributeKey(userNameAttributeName)
+                .oauth2UserInfo(new KakaoOAuth2UserInfo(attributes))
                 .build();
     }
 
     public static OAuthAttributes ofGoogle(String userNameAttributeName, Map<String, Object> attributes) {
         return OAuthAttributes.builder()
-                .id((String) attributes.get("email"))
-                .attributes(attributes)
                 .nameAttributeKey(userNameAttributeName)
+                .oauth2UserInfo(new GoogleOAuth2UserInfo(attributes))
                 .build();
     }
 
     public static OAuthAttributes ofNaver(String userNameAttributeName, Map<String, Object> attributes) {
-        Map<String, Object> response = (Map<String, Object>) attributes.get("response");
-
         return OAuthAttributes.builder()
-                .id((String) response.get("id"))
-                .attributes(response)
                 .nameAttributeKey(userNameAttributeName)
+                .oauth2UserInfo(new NaverOAuth2UserInfo(attributes))
                 .build();
     }
 
     /**
-     * of메소드로 만든 OAuthAttributes 객체 정보들을 이용하여 현재 필드 값에 값들이 들어간 상태
-     * id 필드값 이용하여 domain의 User 객체에 식별 값 저장 후 build
+     * of메소드로 OAuthAttributes 객체가 생성되어, 유저 정보들이 담긴 OAuth2UserInfo가 소셜 타입별로 주입된 상태
+     * OAuth2UserInfo에서 socialId(식별값), nickname, imageUrl을 가져와서 build
      * email에는 UUID로 중복 없는 랜덤 값 생성
      * role은 GUEST로 설정
      */
-    public User toEntity(SocialType socialType) {
+    public User toEntity(SocialType socialType, OAuth2UserInfo oauth2UserInfo) {
         return User.builder()
                 .socialType(socialType)
-                .socialId(id)
-                .email(UUID.randomUUID().toString() + "@socialUser.com")
+                .socialId(oauth2UserInfo.getId())
+                .email(UUID.randomUUID() + "@socialUser.com")
+                .nickname(oauth2UserInfo.getNickname())
+                .imageUrl(oauth2UserInfo.getImageUrl())
                 .role(Role.GUEST)
                 .build();
     }

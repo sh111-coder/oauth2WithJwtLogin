@@ -61,7 +61,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         // DefaultOAuth2User를 구현한 CustomOAuth2User 객체를 생성해서 반환
         return new CustomOAuth2User(
                 Collections.singleton(new SimpleGrantedAuthority(createdUser.getRole().getKey())),
-                extractAttributes.getAttributes(),
+                attributes,
                 extractAttributes.getNameAttributeKey(),
                 createdUser.getEmail(),
                 createdUser.getRole()
@@ -83,7 +83,8 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
      * 만약 찾은 회원이 있다면, 그대로 반환하고 없다면 saveUser()를 호출하여 회원을 저장한다.
      */
     private User getUser(OAuthAttributes attributes, SocialType socialType) {
-        User findUser = userRepository.findBySocialTypeAndSocialId(socialType, attributes.getId()).orElse(null);
+        User findUser = userRepository.findBySocialTypeAndSocialId(socialType,
+                attributes.getOauth2UserInfo().getId()).orElse(null);
 
         if(findUser == null) {
             return saveUser(attributes, socialType);
@@ -96,7 +97,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
      * 생성된 User 객체를 DB에 저장 : socialType, socialId, email, role 값만 있는 상태
      */
     private User saveUser(OAuthAttributes attributes, SocialType socialType) {
-        User createdUser = attributes.toEntity(socialType);
+        User createdUser = attributes.toEntity(socialType, attributes.getOauth2UserInfo());
         return userRepository.save(createdUser);
     }
 }
