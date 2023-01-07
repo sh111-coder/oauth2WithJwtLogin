@@ -1,6 +1,8 @@
 package login.oauthtest4.global.oauth2.handler;
 
 import login.oauthtest4.domain.user.Role;
+import login.oauthtest4.domain.user.User;
+import login.oauthtest4.domain.user.repository.UserRepository;
 import login.oauthtest4.global.jwt.service.JwtService;
 import login.oauthtest4.global.oauth2.CustomOAuth2User;
 import lombok.RequiredArgsConstructor;
@@ -12,14 +14,17 @@ import org.springframework.stereotype.Component;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.transaction.Transactional;
 import java.io.IOException;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
+//@Transactional
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtService jwtService;
+//    private final UserRepository userRepository;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
@@ -34,6 +39,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 response.sendRedirect("oauth2/sign-up"); // 프론트의 회원가입 추가 정보 입력 폼으로 리다이렉트
 
                 jwtService.sendAccessAndRefreshToken(response, accessToken, null);
+//                User findUser = userRepository.findByEmail(oAuth2User.getEmail())
+//                                .orElseThrow(() -> new IllegalArgumentException("이메일에 해당하는 유저가 없습니다."));
+//                findUser.authorizeUser();
             } else {
                 loginSuccess(response, oAuth2User); // 로그인에 성공한 경우 access, refresh 토큰 생성
             }
