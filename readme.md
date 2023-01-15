@@ -1,4 +1,4 @@
-## 📕 Spring Security + JWT를 이용한 자체 Login & OAuth2 Login(구글, 네이버, 카카오) API 구현
+## 📕 Spring Security + JWT를 이용한 자체 Login & OAuth2 Login API 구현
 
 ---
 
